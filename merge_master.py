@@ -144,6 +144,7 @@ def pair_steps():
     roots = set()
     mp4_files = glob.glob('*.mp4')
     for mp4_file in mp4_files:
+        mp4_file = mp4_file.replace('.','-')
         fname_split = mp4_file.split('-')
         root = '-'.join(fname_split[0:6])
         roots.add(root)    
@@ -152,12 +153,12 @@ def pair_steps():
 
         # merge wav
         wav_files = glob.glob(root + '*.wav')
-        assert(len(wav_files) >= 2)
+        assert(len(wav_files) >= 2), 'root=' + root
         merge_wavs(wav_files[0], wav_files[1], root + '.wav')
 
         # merge mp4
         mp4_files = glob.glob(root + '*.mp4')
-        assert(len(mp4_files) >= 2)
+        assert(len(mp4_files) >= 2), mp4_files
         merge_mp4_fname = root + '-merged.mp4'
         merge_mp4s(mp4_files[0], mp4_files[1], merge_mp4_fname)
 
