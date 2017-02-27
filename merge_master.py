@@ -31,10 +31,13 @@ def convert2mp4():
         if(os.path.exists(fname_mp4)):
             continue
         logging.info('converting ' + fname + ' to mp4')
+        #cmd = "ffmpeg -i " + fname + \
+        #      ' -vcodec libx264 -pix_fmt yuv420p -profile:v baseline ' + \
+        #      ' -preset slow -crf 22 -movflags +faststart ' + fname_mp4
         cmd = "ffmpeg -i " + fname + \
               ' -vcodec libx264 -pix_fmt yuv420p -profile:v baseline ' + \
-              ' -preset slow -crf 22 -movflags +faststart ' + fname_mp4
-        
+              ' -preset slow -r 15 -crf 22 -movflags +faststart ' + fname_mp4
+       
         os.system(cmd)
 
         #proc = subprocess.Popen(["cat", "/etc/services"], stdout=subprocess.PIPE, shell=True)
