@@ -1,16 +1,23 @@
 #!/usr/bin/env python
 """
 ------------------------------------------------------------------------
-  converts all webm files in current directory to mp4
+  Converts all webm files in current directory to mp4 and creates
+  merged file and .wav files
 
   There are many issues with videos. Below is the technique that appears to 
   produce the best result.  Doing all these steps at once in a single 
   FFMPEG command do not work (for various known and unknown reasons).
 
+
+  raw/*.webm --> converted/*.mp4          convert2mp4()
+  converted/*.mp4 --> wav/*.wav           extract_wav()
+
+  
 ------------------------------------------------------------------------
 """
 import glob
 import os
+import sys
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -20,15 +27,20 @@ If you want to set the logging level from a command-line option such as:
 '''
 
 #------------------------------------------------------------------------
-def convert2mp4():
+def convert2mp4(input_dir):
     """ convert to mp4 """
 
-    files =  glob.glob('*.webm')
+    if not os.path.isdir('converted'):
+        os.mkdir('converted')
+
+    files =  glob.glob(input_dir + '/*.webm')
     for fname in files:
-        root = fname.split('.')[0]
-        fname_mp4 = root + '.mp4'
+        basename = os.path.basename(fname)
+        root = basename.split('.')[0]
+        fname_mp4 = 'converted/' + root + '.mp4'
         # if mp4 file already exists skip
         if(os.path.exists(fname_mp4)):
+            logging.warning(fname_mp4 + ' already exists, skipping.\n')
             continue
         logging.info('converting ' + fname + ' to mp4')
         #cmd = "ffmpeg -i " + fname + \
@@ -50,13 +62,17 @@ def convert2mp4():
 def extract_wav():
     """ extracts a .wav file from a .mp4 file """
 
-    files =  glob.glob('*.mp4')
+    if not os.path.isdir('wav'):
+        os.mkdir('wav')
+
+    files =  glob.glob('converted/*.mp4')
     for fname in files:
-        root = fname.split('.')[0]
-        fname_wav = root + '.wav'
+        basename = os.path.basename(fname)
+        root = basename.split('.')[0]
+        fname_wav = 'wav/' + root + '.wav'
         # skip if wav file already exists
         if(os.path.exists(fname_wav)):
-            logging.warning(fname_wav + ' exists, skipping.\n')
+            logging.warning(fname_wav + ' already exists, skipping.\n')
             continue
         logging.info('  extracting wav from ' + fname + '\n')
         cmd = "ffmpeg -async 1 -i " + fname + ' ' + fname_wav
@@ -143,41 +159,63 @@ def merge_av(wav_file, mp4_file, outfile):
 #------------------------------------------------------------------------
 def pair_steps():
     """ Before: a directory of mp4 files and wav files """
+
+    if not os.path.isdir('merged'):
+        os.mkdir('merged')
+    if not os.path.isdir('intermediate'):
+        os.mkdir('intermediate')
    
     roots = set()
-    mp4_files = glob.glob('*.mp4')
+    mp4_files = glob.glob('converted/*.mp4')
     for mp4_file in mp4_files:
-        mp4_file = mp4_file.replace('.','-')
-        fname_split = mp4_file.split('-')
+        basename = os.path.basename(mp4_file)
+        fname_split = basename.split('-')
         root = '-'.join(fname_split[0:6])
         roots.add(root)    
 
     for root in roots:
 
         # merge wav
-        wav_files = glob.glob(root + '*.wav')
+        wav_files = glob.glob('wav/' + root + '*.wav')
         assert(len(wav_files) >= 2), 'root=' + root
-        merge_wavs(wav_files[0], wav_files[1], root + '.wav')
+        merge_wavs(wav_files[0], wav_files[1], 'intermediate/' + root + '.wav')
 
         # merge mp4
-        mp4_files = glob.glob(root + '*.mp4')
+        mp4_files = glob.glob('converted/' + root + '*.mp4')
         assert(len(mp4_files) >= 2), mp4_files
-        merge_mp4_fname = root + '-merged.mp4'
+        merge_mp4_fname = 'intermediate/' + root + '-merged.mp4'
         merge_mp4s(mp4_files[0], mp4_files[1], merge_mp4_fname)
 
         # remove audio from mp4
-        merge_mp4_noa_fname = root + '-merged.noa.mp4'
+        merge_mp4_noa_fname = 'intermediate/' + root + '-merged.noa.mp4'
         remove_audio(merge_mp4_fname, merge_mp4_noa_fname)
 
         # merge merged audio and video
-        merge_av(root + '.wav', root + '-merged.noa.mp4', root + '.mp4')
+        merge_av('intermediate/' + root + '.wav', 
+                 'intermediate/' + root + '-merged.noa.mp4', 
+                 'merged/' + root + '.mp4')
 
 
 #------------------------------------------------------------------------
-def do_all():
-    convert2mp4()
+def do_all(input_dir):
+    convert2mp4(input_dir)
     extract_wav()
     pair_steps()
 
 #------------------------------------------------------------------------
-do_all()
+
+if __name__ == '__main__':
+    if (len(sys.argv) > 1):
+        raw_dir = sys.argv[1]
+    else:
+       raw_dir = 'raw'
+
+    if not os.path.isdir(raw_dir):
+        print(raw_dir + ' does not exist')
+        exit()
+    
+    do_all(raw_dir)
+
+
+
+
