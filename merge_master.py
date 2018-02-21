@@ -46,9 +46,12 @@ def convert2mp4(input_dir):
         #cmd = "ffmpeg -i " + fname + \
         #      ' -vcodec libx264 -pix_fmt yuv420p -profile:v baseline ' + \
         #      ' -preset slow -crf 22 -movflags +faststart ' + fname_mp4
+        # -strict -2  is added to remove "aac experimental" error
         cmd = "ffmpeg -i " + fname + \
               ' -vcodec libx264 -pix_fmt yuv420p -profile:v baseline ' + \
-              ' -preset slow -r 15 -crf 22 -movflags +faststart ' + fname_mp4
+              ' -preset slow -r 15 -crf 22 -movflags +faststart ' + \
+            ' -strict -2 ' \
+            + fname_mp4 
        
         os.system(cmd)
 
