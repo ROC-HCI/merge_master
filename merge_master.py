@@ -9,9 +9,9 @@
   FFMPEG command do not work (for various known and unknown reasons).
 
 
-  raw/*.webm --> converted/*.mp4          convert2mp4()
-  converted/*.mp4 --> wav/*.wav           extract_wav()
-
+  raw/*.webm --> converted/*.mp4                        convert2mp4()
+  converted/*.mp4 --> wav/*.wav                         extract_wav()
+  converted/*root*.mp4 +*root*.mp4 --> merged/root.mp4  pair_steps()
   
 ------------------------------------------------------------------------
 """
@@ -114,9 +114,10 @@ def merge_mp4s(infile1, infile2, outfile):
         return
 
     cmd = 'ffmpeg  -i ' + infile1 + ' -i ' + infile2 + \
-          ' -filter_complex "[0:v]setpts=PTS-STARTPTS, pad=iw*2:ih[bg]; [1:v]setpts=PTS-STARTPTS[fg]; [bg][fg]overlay=w;  amerge, pan=stereo:c0<c0+c2:c1<c1+c3" ' + outfile
+          ' -strict -2 -filter_complex "[0:v]setpts=PTS-STARTPTS, ' + \
+          'pad=iw*2:ih[bg]; [1:v]setpts=PTS-STARTPTS[fg]; [bg][fg]overlay=w;' +\
+          'amerge, pan=stereo:c0<c0+c2:c1<c1+c3" ' + outfile
 
-    # TODO: break into multiple lines
 
     # NOTE: we could probably remove the audio processing steps in the 
     # above command.  However, removing may cause
@@ -155,13 +156,30 @@ def merge_av(wav_file, mp4_file, outfile):
         raise ValueError(wav_file + " file does not exist.")
 
     cmd = 'ffmpeg -i ' + wav_file + ' -i ' + mp4_file + \
-          ' -c:v libx264 -c:a libmp3lame -shortest ' + outfile
+          ' -strict -2 -c:v libx264 -c:a libmp3lame -shortest ' + outfile
     os.system(cmd)
     # TODO save log
 
 #------------------------------------------------------------------------
 def pair_steps():
-    """ Before: a directory of mp4 files and wav files """
+    """ uses the converted mp4 files and their extracted .wav to create
+    a side-by-side merged video. In order to minimize audio/video
+    sync issues, several seemingly inefficient steps are taken.
+    Experience shows this sequence tends to result in least amount
+    of audio lag. However, lag still sometimes occurs. The net
+    effect is:
+    
+        converted/*root*.mp4 +*root*.mp4 --> merged/root.mp4
+    
+    This is done through the following steps:
+        wav/root* --> intermediate/root.wav                   merge_wavs()
+        converted/root*.mp4 --> intermediate/root-merged.mp4  merge_mp4s()
+        intermediate/root-merged.mp4 -> root-merged.noa.mp4   remove_audio()
+        intermediate/root-merged.noa.mp4 + root.wav --> 
+            merged/root.mp4                                   merge_av()
+            
+    Interrogator is placed on the left.
+    """
 
     if not os.path.isdir('merged'):
         os.mkdir('merged')
@@ -187,7 +205,12 @@ def pair_steps():
         mp4_files = glob.glob('converted/' + root + '*.mp4')
         assert(len(mp4_files) >= 2), mp4_files
         merge_mp4_fname = 'intermediate/' + root + '-merged.mp4'
-        merge_mp4s(mp4_files[0], mp4_files[1], merge_mp4_fname)
+        if '-I-' in mp4_files[0]:
+            merge_mp4s(mp4_files[0], mp4_files[1], merge_mp4_fname)
+        else:
+            if not ('-I-' in mp4_files[1]):
+                logging.WARNING('unexpected filenaming format; not -I- file')
+            merge_mp4s(mp4_files[1], mp4_files[0], merge_mp4_fname)
 
         # remove audio from mp4
         merge_mp4_noa_fname = 'intermediate/' + root + '-merged.noa.mp4'
@@ -211,7 +234,7 @@ if __name__ == '__main__':
     if (len(sys.argv) > 1):
         raw_dir = sys.argv[1]
     else:
-       raw_dir = 'raw'
+        raw_dir = 'raw'
 
     if not os.path.isdir(raw_dir):
         print(raw_dir + ' does not exist')
